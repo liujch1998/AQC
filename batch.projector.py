@@ -2,6 +2,7 @@
 
 import numpy as np
 import numpy.linalg as la
+import scipy.linalg as sla
 from scipy.misc import comb
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages/')
@@ -95,14 +96,9 @@ def run_single (n, k, G, T, arr):
 	H_P = np.diag(np.array([(sum([(expr_g(G[i][j]))*expr_z(Bit(knar[ii], i))*expr_z(Bit(knar[ii], j)) for i in range(n) for j in range(i)])) for ii in range(cnk)], dtype=complex))
 
 	for t in np.arange(0.0, T, dt):
-		H = (1.0 - t/T) * H_B + t/T * H_P
-		H_ = (1.0 - (t+dt/2)/T) * H_B + (t+dt/2)/T * H_P
-		H__ = (1.0 - (t+dt)/T) * H_B + (t+dt)/T * H_P
-		k1 = (-1j) * np.dot(H, psi)
-		k2 = (-1j) * np.dot(H_, psi+(dt/2)*k1)
-		k3 = (-1j) * np.dot(H_, psi+(dt/2)*k2)
-		k4 = (-1j) * np.dot(H__, psi+dt*k3)
-		psi += (k1 + 2*k2 + 2*k3 + k4) / 6 * dt
+		H = (1.0 - (t+dt)/T) * H_B + (t+dt)/T * H_P
+		psi = np.dot(sla.expm(-dt * H), psi)
+		psi /= la.norm(psi)
 	
 	prob = 0.0
 	for z in arr:
@@ -143,7 +139,7 @@ for it in pbar(range(SAMPLE)):
 	k, T = run_random(n)
 	ansall.append(T)
 	ans[k].append(T)
-sys.stdout = open('output/' + PROB_TYPE + '_' + str(n) + '.txt', 'w')
+sys.stdout = open('output_projector/' + PROB_TYPE + '_' + str(n) + '.txt', 'w')
 print('mean: ' + str(np.mean(np.array(ansall))))
 print('median: ' + str(np.median(np.array(ansall))))
 print(ansall)
