@@ -1,8 +1,10 @@
-# Update: state vector only includes states with proper Hamming weight
+# Update:
+# 	H_B as in paper
+# 	Deprecate Runge Kutta
+# 	Projector
 
 import numpy as np
 import numpy.linalg as la
-import scipy.linalg as sla
 from scipy.misc import comb
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages/')
@@ -12,72 +14,10 @@ PROB_TYPE = sys.argv[1]
 n = int(sys.argv[2])
 SAMPLE = 100
 PROB = 0.5
-dt = 1.0
+dt = 0.1
 np.random.seed(123698745)
 
-def expr_g (gij):
-	return {
-		'max_clique':		1-gij, 
-		'max_vertex_indep':	gij, 
-		'min_vertex_cover': gij, 
-		'min_unknown':		1-gij
-	}[PROB_TYPE]
-def expr_z (z):
-	return {
-		'max_clique':		z, 
-		'max_vertex_indep': z, 
-		'min_vertex_cover': 1-z, 
-		'min_unknown':		1-z
-	}[PROB_TYPE]
-
-# Get Hamming weight of binary number
-def Hamming (num):
-	return bin(num).count('1')
-
-# Get idx-th bit from right
-def Bit (num, idx):
-	return (num >> idx) & 1
-
-# Solve problem classically; return size of answer and array of answers
-def classical_solve (n, G):
-	return {
-		'max_clique':		classical_solve_max(n, G), 
-		'max_vertex_indep':	classical_solve_max(n, G), 
-		'min_vertex_cover':	classical_solve_min(n, G), 
-		'min_unknown':		classical_solve_min(n, G)
-	}[PROB_TYPE]
-def classical_solve_max (n, G):
-	k = 0
-	arr = []
-	for z in range(2**n):
-		flag = True
-		for i in range(n):
-			for j in range(n):
-				if i != j and expr_g(G[i][j])*expr_z(Bit(z, i))*expr_z(Bit(z, j)):
-					flag = False
-		if flag:
-			if k < Hamming(z):
-				arr = []
-				k = Hamming(z)
-			if k == Hamming(z):
-				arr.append(z)
-	return k, arr
-def classical_solve_min (n, G):
-	k = n+1
-	arr = []
-	for z in range(2**n):
-		flag = True
-		for i in range(n):
-			for j in range(n):
-				if i != j and expr_g(G[i][j])*expr_z(Bit(z, i))*expr_z(Bit(z, j)):
-					flag = False
-		if flag:
-			if k > Hamming(z):
-				arr = []
-				k = Hamming(z)
-			if k == Hamming(z):
-				arr.append(z)
-	return k, arr
+from helper import expr_g, expr_z, Hamming, Bit, classical_solve, HB
 
 # Verify if given computation time guarantees sufficient probability
 def run_single (n, k, G, T, arr):
@@ -92,13 +32,12 @@ def run_single (n, k, G, T, arr):
 	cnk = int(comb(n, k))
 
 	psi = np.array([cnk**(-0.5) for i in range(cnk)], dtype=complex)
-	H_B = np.identity(cnk) - np.outer(psi, psi)
+	H_B = HB(n, k, cnk, knar)
 	H_P = np.diag(np.array([(sum([(expr_g(G[i][j]))*expr_z(Bit(knar[ii], i))*expr_z(Bit(knar[ii], j)) for i in range(n) for j in range(i)])) for ii in range(cnk)], dtype=complex))
 
 	for t in np.arange(0.0, T, dt):
 		H = (1.0 - t/T) * H_B + t/T * H_P
-	#	psi = np.dot(sla.expm(-dt * H), psi)
-		psi += (-1j) * np.dot(H, psi) * dt
+		psi += (-1) * np.dot(H, psi) * dt
 		psi /= la.norm(psi)
 	
 	prob = 0.0
@@ -140,7 +79,7 @@ for it in pbar(range(SAMPLE)):
 	k, T = run_random(n)
 	ansall.append(T)
 	ans[k].append(T)
-sys.stdout = open('output_projector/' + PROB_TYPE + '_' + str(n) + '.txt', 'w')
+sys.stdout = open('output/' + PROB_TYPE + '_' + str(n) + '.txt', 'w')
 print('mean: ' + str(np.mean(np.array(ansall))))
 print('median: ' + str(np.median(np.array(ansall))))
 print(ansall)
