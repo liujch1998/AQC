@@ -1,6 +1,5 @@
 # Update:
-# 	Optimization
-# 	walkers birth/death
+# 	Projector Monte Carlo
 
 import numpy as np
 import numpy.linalg as la
@@ -9,67 +8,62 @@ import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages/')
 import progressbar
 
-np.random.seed(19260817)
 PROB_TYPE = sys.argv[1]
 n = int(sys.argv[2])
 SAMPLE = 10
-WALKER = 10000
 PROB = 0.5
 dt = 0.1
+np.random.seed(19260817)
 
-from helper import classical_solve, compress, HB, HP
+from helper import expr_g, expr_z, Hamming, Bit, classical_solve, HB
 
 # Verify if given computation time guarantees sufficient probability
 def run_single (n, k, G, T, arr):
-	cnk, rank, knar = compress(n, k)
+	print(T)
+	rank = np.zeros(2**n, dtype=int)
+	knar = []
+	now = 0
+	for z in range(2**n):
+		if Hamming(z) == k:
+			rank[z] = now
+			knar.append(z)
+			now += 1
+	cnk = int(comb(n, k))
+
+	psi = np.array([cnk**(-0.5) for i in range(cnk)], dtype=complex)
 	H_B = HB(n, k, cnk, knar)
-	H_P = HP(n, G, cnk, knar)
-	
-# AQC evolution
-	psi0 = np.array([cnk**(-0.5) for i in range(cnk)])
+	H_P = np.diag(np.array([(sum([(expr_g(G[i][j]))*expr_z(Bit(knar[ii], i))*expr_z(Bit(knar[ii], j)) for i in range(n) for j in range(i)])) for ii in range(cnk)]))
+	'''
 	for t in np.arange(0.0, T, dt):
 		H = (1.0 - t/T) * H_B + t/T * H_P
-		psi0 += (-1) * np.dot(H, psi0) * dt
-		psi0 /= la.norm(psi0)
-	
-# Monte Carlo random walk
-	# sample walkers from initial wave function amplitude
-	walker_cnt = WALKER
-	walkers = np.random.randint(cnk, size=walker_cnt)  # random walkers
-	log_weights = np.zeros(walker_cnt)  # initial weights are 1
-	# random walk
+		psi += (-1) * np.dot(H, psi) * dt
+		psi /= la.norm(psi)
+	print((abs(psi))**2)
+	'''
+	WALKER = 10000
+#	walkers = np.array([i % cnk for i in range(WALKER)])
+	walkers = np.random.randint(cnk, size=WALKER)
+	np.random.shuffle(walkers)
+	weights = np.ones(WALKER)
 	for t in np.arange(0.0, T, dt):
-		# walkers random diffusion
 		H = (1.0 - t/T) * H_B + t/T * H_P
+	#	E_T = (1.0 - t/T) * (-int(comb(n, 2)))
 		G = np.identity(cnk) - dt * H
-		for i in range(walker_cnt):
-			walker = walkers[i]  # current value of walker
-			weight = np.sum(G[:,walker])  # step weight
-			dist = G[:,walker]/weight  # distribution of next values
-			walkers[i] = np.random.choice(cnk, p=dist)  # random diffusion
-			log_weights[i] += np.log(weight)  # walker weight multiplied by step weight
-		log_weights -= np.average(log_weights)  # normalize product of weights to 1
-
-		# split walkers with large weight
-		idx_large = (log_weights > np.log(2))
-		log_weights[idx_large] -= np.log(2)
-		walkers = np.append(walkers, walkers[idx_large])
-		log_weights = np.append(log_weights, log_weights[idx_large])
-
-		# kill walkers with small weight
-		idx_not_small = (log_weights >= np.log(0.5))
-		walkers = walkers[idx_not_small]
-		log_weights = log_weights[idx_not_small]
-		
-		walker_cnt = walkers.size
-	# reconstruct wave function from random walkers
+		for i in range(WALKER):
+			walker = walkers[i]
+			weight = G[:,walker].sum()
+			dist = G[:,walker]/weight
+			walkers[i] = np.random.choice(cnk, p=dist)
+			weights[i] *= weight
 	psi = np.zeros(cnk)
-	for i in range(walker_cnt):
-		psi[walkers[i]] += np.exp(log_weights[i])
-	psi /= la.norm(psi)  # normalize wave function
-
-	print(str(la.norm(psi0[rank[arr]])**2) + ' ' + str(la.norm(psi[rank[arr]])**2))
-	prob = np.sum(psi[rank[arr]]**2)
+	for i in range(WALKER):
+		psi[walkers[i]] += weights[i]
+	psi /= la.norm(psi)
+#	print((abs(psi))**2)
+	
+	prob = 0.0
+	for z in arr:
+		prob += (abs(psi[rank[z]]))**2
 	return prob >= PROB
 
 # Run algorithm on a single random graph of size n; return computation time to achieve probability threshold
@@ -82,7 +76,7 @@ def run_random (n):
 	
 	# binary search computation time
 	T_min = 0
-	T_max = 1
+	T_max = 2
 	while run_single(n, k, G, T_max*dt, arr) == False:
 		T_max *= 2
 	while T_max - T_min > 1:
