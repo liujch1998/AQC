@@ -1,6 +1,8 @@
 # Update:
 # 	custom Hamiltonian representation
 # 	absolute or relative error 0.01 to reduce computation time
+# 	faster classical solve assuming k <= 8 when n <= 32
+# 	kill simulation if T > 163.84
 
 import numpy as np
 import sys
@@ -21,6 +23,7 @@ from helper import classical_solve, compress, HB, HP
 
 # Verify if given computation time guarantees sufficient success probability
 def run_single (T, ans, cnk, H_B, H_P):
+	print(T)
 	# Monte Carlo random walk
 	# sample walkers from initial wave function amplitude
 	walker_cnt = WALKER
@@ -88,6 +91,8 @@ def run_random (n):
 	T_max = 1
 	while not run_single(T_max*dt, ans, cnk, H_B, H_P):
 		T_max *= 2
+		if T_max == 16384:
+			return k, T_max*dt
 	while T_max - T_min > 1 and (T_max - T_min) > T_max * error:
 		T = (T_min + T_max) // 2
 		if run_single(T*dt, ans, cnk, H_B, H_P):

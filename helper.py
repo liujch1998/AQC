@@ -38,6 +38,24 @@ def classical_solve (n, G):
 		'min_unknown':		classical_solve_min(n, G)
 	}[PROB_TYPE]
 def classical_solve_max (n, G):
+	for k in range(8, 0, -1):
+		ans = []
+		cnk, rank, knar = compress(n, k)
+		for z in knar:
+			flag = True
+			for i in range(n):
+				for j in range(i):
+					if expr_g(G[i][j]) and expr_z(Bit(z, i)) and expr_z(Bit(z, j)):
+						flag = False
+						break
+				if not flag:
+					break
+			if flag:
+				ans.append(z)
+		if ans != []:
+			break
+	return k, ans
+	'''
 	k = 0
 	ans = []
 	for z in range(2**n):
@@ -56,6 +74,7 @@ def classical_solve_max (n, G):
 			if k == Hamming(z):
 				ans.append(z)
 	return k, ans
+	'''
 def classical_solve_min (n, G):
 	k = n+1
 	ans = []
