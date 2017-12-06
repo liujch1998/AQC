@@ -43,9 +43,13 @@ def classical_solve_max (n, G):
 		cnk, rank, knar = compress(n, k)
 		for z in knar:
 			flag = True
+			index = []
 			for i in range(n):
-				for j in range(i):
-					if expr_g(G[i][j]) and expr_z(Bit(z, i)) and expr_z(Bit(z, j)):
+				if expr_z(Bit(z, i)):
+					index.append(i)
+			for i in index:
+				for j in index:
+					if i != j and expr_g(G[i][j]):
 						flag = False
 						break
 				if not flag:
@@ -120,10 +124,10 @@ def compress (n, k):
 
 # Compute Hamiltonian beginning
 # Complexity: cnk * n^2
-def HB (n, k, cnk, knar, rank):
+def HB (n, k, cnk, knar, rank, off_index):
 	on_diag = np.repeat(-(k*(k-1)+(n-k)*(n-k-1)), cnk)
 	off_diag = -1
-	off_index = np.zeros((cnk, k*(n-k)))
+#	off_index = np.zeros((cnk, k*(n-k)))
 	for ii in range(cnk):
 		pos = 0
 		for i in range(n):
@@ -131,13 +135,13 @@ def HB (n, k, cnk, knar, rank):
 				if Bit(knar[ii], i) == 1 and Bit(knar[ii], j) == 0:
 					off_index[ii][pos] = rank[knar[ii] - (1<<i) + (1<<j)]
 					pos += 1
-	H_B = Hamiltonian(on_diag, off_diag, off_index)
+	H_B = Hamiltonian(on_diag, off_diag, k*(n-k))
 	return H_B
 
-def HP (n, G, cnk, knar):
+def HP (n, k, cnk, knar, G):
 	on_diag = np.array([(sum([(expr_g(G[i][j]))*expr_z(Bit(knar[ii], i))*expr_z(Bit(knar[ii], j)) for i in range(n) for j in range(i)])) for ii in range(cnk)])
 	off_diag = 0
-	H_P = Hamiltonian(on_diag, off_diag)
+	H_P = Hamiltonian(on_diag, off_diag, k*(n-k))
 	return H_P
 
 '''

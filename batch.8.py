@@ -3,16 +3,19 @@
 # 	absolute or relative error 0.01 to reduce computation time
 # 	faster classical solve assuming k <= 8 when n <= 32
 # 	kill simulation if T > 163.84
+# 	pull off_index out of Hamiltonian
+# 	avoid np.random.choice
 
 import numpy as np
+import os
 import sys
 sys.path.append('/usr/local/lib/python2.7/site-packages/')
 import progressbar
 
-np.random.seed(19260817)
+np.random.seed(int(sys.argv[3]))
 PROB_TYPE = sys.argv[1]
 n = int(sys.argv[2])
-SAMPLE = 10
+SAMPLE = 13
 WALKER = 10000
 PROB = 0.5
 dt = 0.01
@@ -22,8 +25,7 @@ from Hamiltonian import Hamiltonian
 from helper import classical_solve, compress, HB, HP
 
 # Verify if given computation time guarantees sufficient success probability
-def run_single (T, ans, cnk, H_B, H_P):
-	print(T)
+def run_single (T, ans, cnk, off_index, H_B, H_P):
 	# Monte Carlo random walk
 	# sample walkers from initial wave function amplitude
 	walker_cnt = WALKER
@@ -38,7 +40,7 @@ def run_single (T, ans, cnk, H_B, H_P):
 			walker = walkers[i]  # current value of walker
 			weight = G.col_sum(walker)  # step weight
 			if np.random.random() >= G.diag_ratio(walker):
-				walkers[i] = np.random.choice(G.off_index[walker])
+				walkers[i] = off_index[walker][np.random.randint(off_index[walker].shape[0])]
 			log_weights[i] += np.log(weight)  # walker weight multiplied by step weight
 		log_weights -= np.average(log_weights)  # normalize product of weights to 1
 
@@ -83,19 +85,20 @@ def run_random (n):
 	cnk, rank, knar = compress(n, k)
 	for i in range(len(ans)):
 		ans[i] = rank[ans[i]]
-	H_B = HB(n, k, cnk, knar, rank)
-	H_P = HP(n, G, cnk, knar)
+	off_index = np.zeros((cnk, k*(n-k)))
+	H_B = HB(n, k, cnk, knar, rank, off_index)
+	H_P = HP(n, k, cnk, knar, G)
 	
 	# binary search computation time
 	T_min = 0
 	T_max = 1
-	while not run_single(T_max*dt, ans, cnk, H_B, H_P):
+	while not run_single(T_max*dt, ans, cnk, off_index, H_B, H_P):
 		T_max *= 2
 		if T_max == 16384:
 			return k, T_max*dt
 	while T_max - T_min > 1 and (T_max - T_min) > T_max * error:
 		T = (T_min + T_max) // 2
-		if run_single(T*dt, ans, cnk, H_B, H_P):
+		if run_single(T*dt, ans, cnk, off_index, H_B, H_P):
 			T_max = T
 		else:
 			T_min = T
@@ -114,7 +117,9 @@ for it in pbar(range(SAMPLE)):
 	k, T = run_random(n)
 	ansall.append(T)
 	ans[k].append(T)
-sys.stdout = open('result/' + PROB_TYPE + '_' + str(n) + '.txt', 'w')
+if not os.path.exists('result/' + sys.argv[3]):
+	os.makedirs('result/' + sys.argv[3])
+sys.stdout = open('result/' + sys.argv[3] + '/' + PROB_TYPE + '_' + str(n) + '.txt', 'w')
 print('mean: ' + str(np.mean(np.array(ansall))))
 print('median: ' + str(np.median(np.array(ansall))))
 print(ansall)
